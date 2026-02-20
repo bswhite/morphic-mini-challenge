@@ -46,7 +46,9 @@ sc.metadata <- fread_with_rownames(sc.metadata.file)
 # Read in the TF / cell type combinations to analyze
 tfs.to.analyze <- read.csv(tfs.to.analyze.file, header=TRUE)
 
-score.viper <- function(predictions.tbl, sc.metadata, sc.data) {
+score.viper <- function(predictions.tbl, sc.metadata, sc.data, 
+                        sc.cell.type.col = "celltype_jf", sc.genotype.col = "gRNA_perturb", sc.wt.status = "CTRL") 
+{
   #' Apply VIPER to compute single-cell transcription factor (TF) activities from predicted TF targets.
   #' 
   #' @description Compute VIPER TF activity scores using predicted TF targets and wild type (WT) and TF knockout (KO) scRNA-seq
@@ -58,10 +60,13 @@ score.viper <- function(predictions.tbl, sc.metadata, sc.data) {
   #' and should be in [-1, +1], with positive values corresponding to a positively regulated (induced) target and
   #' negative values corresponding to a negatively regulated (repressed) target.
   #' @param sc.metadata data.frame. Metadata describing the single-cell data, where each row is a cell. Row names
-  #' correspond to the cell id. The cell's type is provided in column celltype_jf and the KO'ed TF is in
-  #' column gRNA_perturb. WT cells have gRNA_perturb set to CTRL.
+  #' correspond to the cell id. The cell's type is provided in column sc.cell.type.col and the KO'ed TF is in
+  #' column sc.genotype.col. WT cells have gRNA_perturb set to CTRL.
   #' @param sc.data data.frame. scRNA-seq data, with row names gene symbols and column names cell ids. The data
   #' are log normalized.
+  #' @param sc.cell.type.col. character string providing the name of the column in sc.metadata holding the cell type.
+  #' @param sc.genotype.col. character string providing the name of the column in sc.metadata holding WT vs TF KO status.
+  #' @param sc.wt.status. character string providing the status of WT cells in the sc.genotype.col
   #' @return A data.frame with VIPER TF activity scores for each cell. Each row is a cell, with VIPER TF activity score in column score
   #' and an associated VIPER p-value in column p_value. The TF is in column TF.
   #' The cell's type is in column cell.type and its WT or TF KO status
@@ -74,8 +79,8 @@ score.viper <- function(predictions.tbl, sc.metadata, sc.data) {
           tf <- df[1, "TF"]
           ct <- df[1, "cell.type"]
           
-          ko.flag <- (sc.metadata$gRNA_perturb == tf) & (sc.metadata$celltype_jf == ct)
-          wt.flag <- (sc.metadata$gRNA_perturb == "CTRL") & (sc.metadata$celltype_jf == ct)
+          ko.flag <- (sc.metadata[, sc.genotype.col] == tf) & (sc.metadata[, sc.cell.type.col] == ct)
+          wt.flag <- (sc.metadata[, sc.genotype.col] == sc.wt.status) & (sc.metadata[, sc.cell.type.col] == ct)
           ko.mat <- sc.data[, ko.flag]
           wt.mat <- sc.data[, wt.flag]
           
@@ -89,11 +94,11 @@ score.viper <- function(predictions.tbl, sc.metadata, sc.data) {
           vp <- run_viper(combined.mat, network, .source = "source", .target = "target", .mor = "mor", pleiotropy = FALSE, method = "none")
           
           vp <- subset(vp, source != "dummy")
-          vp <- merge(vp, sc.metadata[ko.flag | wt.flag, c("gRNA_perturb"), drop=FALSE], by.x = c("condition"), by.y = c("row.names"))
+          vp <- merge(vp, sc.metadata[ko.flag | wt.flag, c(sc.genotype.col), drop=FALSE], by.x = c("condition"), by.y = c("row.names"))
           vp <- vp[, !(colnames(vp) %in% c("condition", "statistic", "source"))]
-          colnames(vp)[colnames(vp) == "gRNA_perturb"] <- "condition"
-          vp$condition[vp$condition != "CTRL"] <- "KO"
-          vp$condition[vp$condition == "CTRL"] <- "WT"
+          colnames(vp)[colnames(vp) == sc.genotype.col] <- "condition"
+          vp$condition[vp$condition != sc.wt.status] <- "KO"
+          vp$condition[vp$condition == sc.wt.status] <- "WT"
           vp <- cbind(vp, TF = tf, cell.type = ct)
           vp
         })
@@ -120,7 +125,7 @@ compare.viper.distributions <- function(viper.df) {
   stats
 }
 
-tmp <- subset(tfs.to.analyze, wt.expr.gt.ko.pval < 0.1)[, c("TF", "celltype_jf")]
+tmp <- tfs.to.analyze[, c("TF", "celltype_jf")]
 colnames(tmp) <- c("TF", "cell.type")
 tmp <- merge(grnboost2.res, tmp)
 gb2.preds <- subset(tmp, significant == TRUE)
@@ -143,3 +148,4 @@ ofile <- paste0(plot.dir, "CHOOSE-TF-viper-distributions.png")
 png(ofile)
 print(g)
 d <- dev.off()
+print(ofile)
