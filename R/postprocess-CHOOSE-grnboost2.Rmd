@@ -12,7 +12,7 @@ suppressPackageStartupMessages(p_load(here))
 work.dir <- '/sdata/activities/white-morphic/users/whitebr/kayee-mini-challenge/'
 #sc.rds.file <- paste0(work.dir, "CHOOSE-sc-wt-and-tfs-seurat-obj.rds")
 multiome.rds.file <- paste0(work.dir, "CHOOSE-multiome-seurat-obj.rds")
-use_global_var_genes <- FALSE
+use_global_var_genes <- TRUE
 grnboost2.files <- list.files(path = work.dir, pattern="*.grn.tsv.gz")
 if(use_global_var_genes) {
   grnboost2.files <- list.files(path = work.dir, pattern="*global_var_genes.grn.tsv.gz")
@@ -46,6 +46,9 @@ all.res <-
                  grnboost2.res
         })
 all.res[,"score"] <- all.res[,"importance"] * sign(all.res[,"cor.p"])
+
+# Put score in [-1, 1] (across all TFs / cell type!)
+all.res[,"score"] <- all.res[,"score"] / max(abs(all.res[,"score"])) 
 ```
 
 ```{r}
