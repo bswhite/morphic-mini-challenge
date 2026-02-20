@@ -67,9 +67,8 @@ score.viper <- function(predictions.tbl, sc.metadata, sc.data,
   #' @param sc.cell.type.col. character string providing the name of the column in sc.metadata holding the cell type.
   #' @param sc.genotype.col. character string providing the name of the column in sc.metadata holding WT vs TF KO status.
   #' @param sc.wt.status. character string providing the status of WT cells in the sc.genotype.col
-  #' @return A data.frame with VIPER TF activity scores for each cell. Each row is a cell, with VIPER TF activity score in column score
-  #' and an associated VIPER p-value in column p_value. The TF is in column TF.
-  #' The cell's type is in column cell.type and its WT or TF KO status
+  #' @return A data.frame with VIPER TF activity scores for each cell. Each row is a cell, with VIPER TF activity score in column score.
+  #' The TF is in column TF. The cell's type is in column cell.type and its WT or TF KO status
   #' is in column condition (as WT or KO, respectively). 
   
   ddply(predictions.tbl,
@@ -95,8 +94,10 @@ score.viper <- function(predictions.tbl, sc.metadata, sc.data,
           
           vp <- subset(vp, source != "dummy")
           vp <- merge(vp, sc.metadata[ko.flag | wt.flag, c(sc.genotype.col), drop=FALSE], by.x = c("condition"), by.y = c("row.names"))
-          vp <- vp[, !(colnames(vp) %in% c("condition", "statistic", "source"))]
-          colnames(vp)[colnames(vp) == sc.genotype.col] <- "condition"
+          vp <- vp[, !(colnames(vp) %in% c("condition", "statistic", "source", "p_value"))]
+          colnames(vp)[colnames(vp) == sc.genotype.col] <- "perturbation"
+          vp$condition <- vp$perturbation
+          vp$perturbation[vp$perturbation == sc.wt.status] <- "none"
           vp$condition[vp$condition != sc.wt.status] <- "KO"
           vp$condition[vp$condition == sc.wt.status] <- "WT"
           vp <- cbind(vp, TF = tf, cell.type = ct)
